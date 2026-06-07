@@ -1,0 +1,118 @@
+const express = require("express");
+const router = express.Router();
+const ContentItem = require("../models/ContentItem");
+const auth = require("../middleware/auth");
+const admin = require("../middleware/admin");
+
+router.post("/", auth, admin, async (req, res) => {
+  try {
+    const { title, body, category, tags, author, fileType } = req.body;
+
+    if (!title || !body) {
+      return res.status(400).json({ success: false, message: "Title and body are required." });
+    }
+
+    const item = new ContentItem({
+      title,
+      body,
+      category: category || "Uncategorized",
+      tags: Array.isArray(tags) ? tags : (tags ? tags.split(",").map((t) => t.trim()) : []),
+      author: author || "Anonymous",
+      fileType: fileType || "text",
+    });
+
+    const saved = await item.save();
+    res.status(201).json({ success: true, data: saved });
+  } catch (err) {
+    res.status(500).json({ success: false, message: err.message });
+  }
+});
+
+router.get("/", async (req, res) => {
+  try {
+    const { search, category, tags, page = 1, limit = 20 } = req.query;
+
+    let query = {};
+
+    if (search) {
+      query.$text = { $search: search };
+    }
+    if (category) {
+      query.category = { $regex: category, $options: "i" };
+    }
+    if (tags) {
+      const tagList = tags.split(",").map((t) => t.trim());
+      query.tags = { $in: tagList };
+    }
+
+    const skip = (parseInt(page) - 1) * parseInt(limit);
+    const total = await ContentItem.countDocuments(query);
+    const items = await ContentItem.find(query)
+      .sort({ createdAt: -1 })
+      .skip(skip)
+      .limit(parseInt(limit));
+
+    res.json({
+      success: true,
+      total,
+      page: parseInt(page),
+      totalPages: Math.ceil(total / parseInt(limit)),
+      data: items,
+    });
+  } catch (err) {
+    res.status(500).json({ success: false, message: err.message });
+  }
+});
+
+router.get("/:id", async (req, res) => {
+  try {
+    const item = await ContentItem.findById(req.params.id);
+    if (!item) return res.status(404).json({ success: false, message: "Content not found." });
+    res.json({ success: true, data: item });
+  } catch (err) {
+    res.status(500).json({ success: false, message: err.message });
+  }
+});
+
+router.put("/:id", auth, admin, async (req, res) => {
+  try {
+    const { title, body, category, tags, author, fileType } = req.body;
+
+    const update = {};
+    if (title) update.title = title;
+    if (body) update.body = body;
+    if (category) update.category = category;
+    
+    if (tags) {
+      update.tags = Array.isArray(tags) 
+        ? tags 
+        : tags.split(",").map((t) => t.trim()).filter(Boolean);
+    }
+    
+    if (author) update.author = author;
+    if (fileType) update.fileType = fileType;
+
+    const updated = await ContentItem.findByIdAndUpdate(req.params.id, update, {
+      new: true,
+      runValidators: true,
+    });
+
+    if (!updated) return res.status(404).json({ success: false, message: "Content not found." });
+    
+    res.json({ success: true, message: "Resource modified safely.", data: updated });
+  } catch (err) {
+    res.status(500).json({ success: false, message: err.message });
+  }
+});
+
+router.delete("/:id", auth, admin, async (req, res) => {
+  try {
+    const deleted = await ContentItem.findByIdAndDelete(req.params.id);
+    if (!deleted) return res.status(404).json({ success: false, message: "Content not found." });
+    res.json({ success: true, message: "Content deleted successfully." });
+  } catch (err) {
+    res.status(500).json({ success: false, message: err.message });
+  }
+});
+
+module.exports = router;
