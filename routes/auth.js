@@ -4,11 +4,12 @@ const jwt = require("jsonwebtoken");
 
 const User = require("../models/User");
 const auth = require("../middleware/auth");
+const isAdmin = require("../middleware/admin");
 
 const router = express.Router();
 
 
-router.post("/register", async (req, res) => {
+router.post("/register", auth, isAdmin, async (req, res) => {
   try {
     const { username, email, password } = req.body;
 
@@ -35,16 +36,11 @@ router.post("/register", async (req, res) => {
 
     const hashedPassword = await bcrypt.hash(password, 10);
 
-    let isUserAdmin = false;
-    if (email.toLowerCase() === "admin@lineupmaker.com") {
-      isUserAdmin = true;
-    }
-
     const user = await User.create({
       username,
       email: email.toLowerCase(),
       password: hashedPassword,
-      isAdmin: isUserAdmin, // Matches the schema definition
+      isAdmin: false,
     });
 
     res.status(201).json({
