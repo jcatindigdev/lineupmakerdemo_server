@@ -36,11 +36,13 @@ router.post("/register", auth, isAdmin, async (req, res) => {
 
     const hashedPassword = await bcrypt.hash(password, 10);
 
+    const { username, email, password, isAdmin } = req.body;
+
     const user = await User.create({
       username,
       email: email.toLowerCase(),
       password: hashedPassword,
-      isAdmin: false,
+      isAdmin: Boolean(isAdmin),
     });
 
     res.status(201).json({
@@ -62,6 +64,60 @@ router.post("/register", auth, isAdmin, async (req, res) => {
   }
 });
 
+router.post("/admin/create-user", auth, isAdmin, async (req, res) => {
+  try {
+    const { username, email, password, isAdmin: newUserIsAdmin } = req.body;
+
+    if (!username || !email || !password) {
+      return res.status(400).json({
+        success: false,
+        message: "All fields are required",
+      });
+    }
+
+    const existingUser = await User.findOne({
+      $or: [
+        { email: email.toLowerCase() },
+        { username }
+      ]
+    });
+
+    if (existingUser) {
+      return res.status(400).json({
+        success: false,
+        message: "Username or email already exists",
+      });
+    }
+
+    const hashedPassword = await bcrypt.hash(password, 10);
+
+    const user = await User.create({
+      username,
+      email: email.toLowerCase(),
+      password: hashedPassword,
+      isAdmin: !!newUserIsAdmin
+    });
+
+    res.status(201).json({
+      success: true,
+      message: `${user.isAdmin ? "Admin" : "User"} account created successfully`,
+      user: {
+        id: user._id,
+        username: user.username,
+        email: user.email,
+        isAdmin: user.isAdmin
+      }
+    });
+
+  } catch (error) {
+    console.error(error);
+
+    res.status(500).json({
+      success: false,
+      message: "Server error"
+    });
+  }
+});
 
 router.post('/login', async (req, res) => {
   try {
