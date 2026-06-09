@@ -2,6 +2,7 @@ const express = require("express");
 const router = express.Router();
 const PDFDocument = require("pdfkit");
 const ContentItem = require("../models/ContentItem");
+const { Document, Packer, Paragraph, TextRun, HeadingLevel, AlignmentType } = require("docx");
 
 router.post("/generate", async (req, res) => {
   try {
@@ -205,6 +206,111 @@ router.post("/preview", async (req, res) => {
     res.json({ success: true, preview });
   } catch (err) {
     res.status(500).json({ success: false, message: err.message });
+  }
+});
+
+// ── DOCX Generation ────────────────────────────────────────────────────────
+router.post("/generate-docx", async (req, res) => {
+  try {
+    const { items, title, author, includeMetadata } = req.body;
+
+    if (!items || !Array.isArray(items) || items.length === 0) {
+      return res.status(400).json({ success: false, message: "Please provide an ordered list of item IDs." });
+    }
+
+    const ids = items.map((i) => i.id);
+    const fetchedMap = {};
+    const fetchedItems = await ContentItem.find({ _id: { $in: ids } });
+    fetchedItems.forEach((item) => { fetchedMap[item._id.toString()] = item; });
+
+    const orderedItems = items
+      .sort((a, b) => a.order - b.order)
+      .map((i) => fetchedMap[i.id])
+      .filter(Boolean);
+
+    if (orderedItems.length === 0) {
+      return res.status(404).json({ success: false, message: "None of the provided item IDs were found." });
+    }
+
+    const date = new Date().toLocaleDateString("en-US", { year: "numeric", month: "long", day: "numeric" });
+    const children = [];
+
+    // ── Cover ──────────────────────────────────────────────────
+    children.push(
+      new Paragraph({ text: title || "Generated Document", heading: HeadingLevel.TITLE, alignment: AlignmentType.CENTER }),
+      new Paragraph({ children: [new TextRun({ text: author ? `by ${author}` : "", italics: true, color: "888888", size: 28 })], alignment: AlignmentType.CENTER }),
+      new Paragraph({ children: [new TextRun({ text: date, color: "aaaaaa", size: 22 })], alignment: AlignmentType.CENTER }),
+      new Paragraph({ children: [new TextRun({ text: `${orderedItems.length} song${orderedItems.length !== 1 ? "s" : ""}`, color: "aaaaaa", size: 20 })], alignment: AlignmentType.CENTER }),
+      new Paragraph({ text: "" }),
+    );
+
+    // ── Table of Contents ──────────────────────────────────────
+    children.push(
+      new Paragraph({ text: "Table of Contents", heading: HeadingLevel.HEADING_1, pageBreakBefore: true }),
+    );
+    orderedItems.forEach((item, idx) => {
+      children.push(
+        new Paragraph({
+          children: [
+            new TextRun({ text: `${idx + 1}.  `, bold: true, color: "c9a96e" }),
+            new TextRun({ text: item.title }),
+            new TextRun({ text: `  —  ${item.category || ""}`, color: "aaaaaa", size: 18 }),
+          ],
+        })
+      );
+    });
+
+    // ── Song Sections ──────────────────────────────────────────
+    orderedItems.forEach((item) => {
+      // Song title as new page
+      children.push(
+        new Paragraph({ text: item.title, heading: HeadingLevel.HEADING_1, pageBreakBefore: true })
+      );
+
+      // Metadata
+      if (includeMetadata) {
+        const meta = [];
+        if (item.author && item.author !== "Anonymous") meta.push(`Author: ${item.author}`);
+        if (item.category) meta.push(`Category: ${item.category}`);
+        if (item.tags && item.tags.length) meta.push(`Tags: ${item.tags.join(", ")}`);
+        if (meta.length) {
+          children.push(
+            new Paragraph({
+              children: [new TextRun({ text: meta.join("  ·  "), italics: true, color: "999999", size: 18 })],
+            })
+          );
+        }
+      }
+
+      // Divider space
+      children.push(new Paragraph({ text: "" }));
+
+      // Body — split on newlines to preserve line breaks
+      const lines = (item.body || "").split("\n");
+      lines.forEach((line) => {
+        children.push(
+          new Paragraph({
+            children: [new TextRun({ text: line === "" ? " " : line, size: 22 })],
+            spacing: { after: 0 },
+          })
+        );
+      });
+    });
+
+    // Build and send document
+    const doc = new Document({ sections: [{ children }] });
+    const buffer = await Packer.toBuffer(doc);
+    const safeTitle = (title || "document").replace(/[^a-z0-9_\-]/gi, "_");
+
+    res.setHeader("Content-Type", "application/vnd.openxmlformats-officedocument.wordprocessingml.document");
+    res.setHeader("Content-Disposition", `attachment; filename="${safeTitle}.docx"`);
+    res.send(buffer);
+
+  } catch (err) {
+    console.error("DOCX generation error:", err);
+    if (!res.headersSent) {
+      res.status(500).json({ success: false, message: err.message });
+    }
   }
 });
 
