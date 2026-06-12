@@ -32,12 +32,34 @@ const contentItemSchema = new mongoose.Schema(
       enum: ["text", "markdown", "html"],
       default: "text",
     },
+
+    // ── Voicing audio links ──────────────────────────────────
+    voicings: {
+      soprano:  { type: String, trim: true, default: "" },
+      alto:     { type: String, trim: true, default: "" },
+      tenor:    { type: String, trim: true, default: "" },
+      bass:     { type: String, trim: true, default: "" },
+      baritone: { type: String, trim: true, default: "" },
+      solo:     { type: String, trim: true, default: "" },
+    },
+
+    // ── Music score link ─────────────────────────────────────
+    scoreUrl: {
+      type: String,
+      trim: true,
+      default: "",
+    },
   },
   {
     timestamps: true,
   }
 );
 
-contentItemSchema.index({ title: "text", body: "text", tags: "text", category: "text" });
+contentItemSchema.index({
+  title: "text",
+  body: "text",
+  tags: "text",
+  category: "text",
+});
 
 module.exports = mongoose.model("ContentItem", contentItemSchema);
