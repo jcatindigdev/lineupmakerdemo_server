@@ -5,7 +5,7 @@ const ContentItem = require("../models/ContentItem");
 // ── Helper: sanitize a voicings object from request body ────
 function parseVoicings(raw) {
   if (!raw || typeof raw !== "object") return {};
-  const allowed = ["soprano", "alto", "tenor", "bass", "baritone", "solo"];
+  const allowed = ["fullSong", "soprano", "alto", "tenor", "bass", "baritone", "solo"];
   const result = {};
   allowed.forEach((part) => {
     if (typeof raw[part] === "string") {
@@ -32,6 +32,7 @@ router.post("/", async (req, res) => {
       author: author || "Anonymous",
       fileType: fileType || "text",
       voicings: {
+        fullSong: voicings?.fullSong?.trim() || "",
         soprano:  voicings?.soprano?.trim()  || "",
         alto:     voicings?.alto?.trim()     || "",
         tenor:    voicings?.tenor?.trim()    || "",

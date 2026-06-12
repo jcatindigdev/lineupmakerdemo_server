@@ -4,7 +4,11 @@ const PDFDocument = require("pdfkit");
 const ContentItem = require("../models/ContentItem");
 const { Document, Packer, Paragraph, TextRun, HeadingLevel, AlignmentType, ExternalHyperlink } = require("docx");
 
-const VOICE_PARTS = ["soprano", "alto", "tenor", "bass", "baritone", "solo"];
+const VOICE_PARTS = ["fullSong", "soprano", "alto", "tenor", "bass", "baritone", "solo"];
+const VOICE_LABELS = {
+  fullSong: "Full Song", soprano: "Soprano", alto: "Alto", tenor: "Tenor",
+  bass: "Bass", baritone: "Baritone", solo: "Solo",
+};
 
 // ── PDF Generation ──────────────────────────────────────────────────────────
 router.post("/generate", async (req, res) => {
@@ -145,7 +149,7 @@ router.post("/generate", async (req, res) => {
 
         // One line per available voicing
         activeParts.forEach((part) => {
-          const label = part.charAt(0).toUpperCase() + part.slice(1);
+          const label = VOICE_LABELS[part] || part;
           doc.fillColor("#666666").fontSize(9).font("Helvetica")
             .text(`${label}:  `, MARGIN + 8, doc.y, { continued: true });
           doc.fillColor("#1a5ca8").fontSize(9)
@@ -297,7 +301,7 @@ router.post("/generate-docx", async (req, res) => {
 
         // One line per voicing with a clickable hyperlink
         activeParts.forEach((part) => {
-          const label = part.charAt(0).toUpperCase() + part.slice(1);
+          const label = VOICE_LABELS[part] || part;
           children.push(new Paragraph({
             children: [
               new TextRun({ text: `${label}:  `, size: 18 }),

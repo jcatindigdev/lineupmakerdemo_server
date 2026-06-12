@@ -35,6 +35,7 @@ const contentItemSchema = new mongoose.Schema(
 
     // ── Voicing audio links ──────────────────────────────────
     voicings: {
+      fullSong: { type: String, trim: true, default: "" },
       soprano:  { type: String, trim: true, default: "" },
       alto:     { type: String, trim: true, default: "" },
       tenor:    { type: String, trim: true, default: "" },
