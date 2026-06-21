@@ -33,15 +33,37 @@ const contentItemSchema = new mongoose.Schema(
       default: "text",
     },
 
-    // ── Voicing audio links ──────────────────────────────────
+    // ── Content type ─────────────────────────────────────────
+    // "song"  → appears in Song Library (singers)
+    // "chord" → appears in Chord Library (musicians)
+    contentType: {
+      type: String,
+      enum: ["song", "chord"],
+      default: "song",
+    },
+
+    // ── Audio links ──────────────────────────────────────────
+    // Singer voicings (original)
+    // Instrument links (new)
+    // Both coexist in the same voicings object
     voicings: {
+      // ── Singers ──
       fullSong: { type: String, trim: true, default: "" },
       soprano:  { type: String, trim: true, default: "" },
       alto:     { type: String, trim: true, default: "" },
       tenor:    { type: String, trim: true, default: "" },
-      bass:     { type: String, trim: true, default: "" },
       baritone: { type: String, trim: true, default: "" },
       solo:     { type: String, trim: true, default: "" },
+      // ── Instruments ──
+      electricGuitar1: { type: String, trim: true, default: "" },
+      electricGuitar2: { type: String, trim: true, default: "" },
+      electricGuitar3: { type: String, trim: true, default: "" },
+      bass:            { type: String, trim: true, default: "" },
+      acousticGuitar1: { type: String, trim: true, default: "" },
+      acousticGuitar2: { type: String, trim: true, default: "" },
+      violin:          { type: String, trim: true, default: "" },
+      viola:           { type: String, trim: true, default: "" },
+      keys:            { type: String, trim: true, default: "" },
     },
 
     // ── Music score link ─────────────────────────────────────
@@ -51,16 +73,9 @@ const contentItemSchema = new mongoose.Schema(
       default: "",
     },
   },
-  {
-    timestamps: true,
-  }
+  { timestamps: true }
 );
 
-contentItemSchema.index({
-  title: "text",
-  body: "text",
-  tags: "text",
-  category: "text",
-});
+contentItemSchema.index({ title: "text", body: "text", tags: "text", category: "text" });
 
 module.exports = mongoose.model("ContentItem", contentItemSchema);

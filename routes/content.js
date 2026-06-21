@@ -2,12 +2,19 @@ const express = require("express");
 const router = express.Router();
 const ContentItem = require("../models/ContentItem");
 
-// ── Helper: sanitize a voicings object from request body ────
+const ALL_VOICING_PARTS = [
+  // Singers (original)
+  "fullSong", "soprano", "alto", "tenor", "baritone", "solo",
+  // Instruments (new)
+  "electricGuitar1", "electricGuitar2", "electricGuitar3",
+  "bass", "acousticGuitar1", "acousticGuitar2",
+  "violin", "viola", "keys",
+];
+
 function parseVoicings(raw) {
   if (!raw || typeof raw !== "object") return {};
-  const allowed = ["fullSong", "soprano", "alto", "tenor", "bass", "baritone", "solo"];
   const result = {};
-  allowed.forEach((part) => {
+  ALL_VOICING_PARTS.forEach((part) => {
     if (typeof raw[part] === "string") {
       result[`voicings.${part}`] = raw[part].trim();
     }
@@ -15,10 +22,18 @@ function parseVoicings(raw) {
   return result;
 }
 
-// POST /api/content — Create a new song
+function buildVoicings(v) {
+  const out = {};
+  ALL_VOICING_PARTS.forEach((part) => {
+    out[part] = v?.[part]?.trim() || "";
+  });
+  return out;
+}
+
+// POST /api/content
 router.post("/", async (req, res) => {
   try {
-    const { title, body, category, tags, author, fileType, voicings, scoreUrl } = req.body;
+    const { title, body, category, tags, author, fileType, contentType, voicings, scoreUrl } = req.body;
 
     if (!title || !body) {
       return res.status(400).json({ success: false, message: "Title and body are required." });
@@ -31,15 +46,8 @@ router.post("/", async (req, res) => {
       tags: Array.isArray(tags) ? tags : (tags ? tags.split(",").map((t) => t.trim()) : []),
       author: author || "Anonymous",
       fileType: fileType || "text",
-      voicings: {
-        fullSong: voicings?.fullSong?.trim() || "",
-        soprano:  voicings?.soprano?.trim()  || "",
-        alto:     voicings?.alto?.trim()     || "",
-        tenor:    voicings?.tenor?.trim()    || "",
-        bass:     voicings?.bass?.trim()     || "",
-        baritone: voicings?.baritone?.trim() || "",
-        solo:     voicings?.solo?.trim()     || "",
-      },
+      contentType: contentType === "chord" ? "chord" : "song",
+      voicings: buildVoicings(voicings),
       scoreUrl: scoreUrl?.trim() || "",
     });
 
@@ -50,19 +58,41 @@ router.post("/", async (req, res) => {
   }
 });
 
-// GET /api/content — List / search songs
+// GET /api/content
+// ?contentType=song  → songs only (incl. legacy docs without contentType)
+// ?contentType=chord → chord charts only
+// (no contentType param) → all items
 router.get("/", async (req, res) => {
   try {
-    const { search, category, tags, page = 1, limit = 20 } = req.query;
-    let query = {};
+    const { search, category, tags, contentType, page = 1, limit = 20 } = req.query;
+    const conditions = [];
 
-    if (search)   query.$text = { $search: search };
-    if (category) query.category = { $regex: category, $options: "i" };
-    if (tags) {
-      const tagList = tags.split(",").map((t) => t.trim());
-      query.tags = { $in: tagList };
+    if (contentType === "chord") {
+      conditions.push({ contentType: "chord" });
+    } else if (contentType === "song") {
+      // Include explicitly "song" AND legacy docs without the field
+      conditions.push({ $or: [{ contentType: "song" }, { contentType: { $exists: false } }] });
     }
 
+    if (search) {
+      const safe = search.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+      conditions.push({
+        $or: [
+          { title: { $regex: safe, $options: "i" } },
+          { body:  { $regex: safe, $options: "i" } },
+          { tags:  { $regex: safe, $options: "i" } },
+        ],
+      });
+    }
+
+    if (category) conditions.push({ category: { $regex: category, $options: "i" } });
+
+    if (tags) {
+      const tagList = tags.split(",").map((t) => t.trim());
+      conditions.push({ tags: { $in: tagList } });
+    }
+
+    const query = conditions.length > 0 ? { $and: conditions } : {};
     const skip  = (parseInt(page) - 1) * parseInt(limit);
     const total = await ContentItem.countDocuments(query);
     const items = await ContentItem.find(query)
@@ -82,7 +112,7 @@ router.get("/", async (req, res) => {
   }
 });
 
-// GET /api/content/:id — Get a single song
+// GET /api/content/:id
 router.get("/:id", async (req, res) => {
   try {
     const item = await ContentItem.findById(req.params.id);
@@ -93,17 +123,18 @@ router.get("/:id", async (req, res) => {
   }
 });
 
-// PUT /api/content/:id — Update a song
+// PUT /api/content/:id
 router.put("/:id", async (req, res) => {
   try {
-    const { title, body, category, tags, author, fileType, voicings, scoreUrl } = req.body;
+    const { title, body, category, tags, author, fileType, contentType, voicings, scoreUrl } = req.body;
 
     const update = {};
-    if (title)    update.title    = title;
-    if (body)     update.body     = body;
-    if (category) update.category = category;
-    if (author)   update.author   = author;
-    if (fileType) update.fileType = fileType;
+    if (title)       update.title       = title;
+    if (body)        update.body        = body;
+    if (category)    update.category    = category;
+    if (author)      update.author      = author;
+    if (fileType)    update.fileType    = fileType;
+    if (contentType) update.contentType = contentType;
     if (scoreUrl !== undefined) update.scoreUrl = scoreUrl.trim();
 
     if (tags) {
@@ -112,7 +143,6 @@ router.put("/:id", async (req, res) => {
         : tags.split(",").map((t) => t.trim()).filter(Boolean);
     }
 
-    // Merge voicing fields individually so unset parts aren't wiped
     if (voicings && typeof voicings === "object") {
       Object.assign(update, parseVoicings(voicings));
     }
@@ -124,13 +154,13 @@ router.put("/:id", async (req, res) => {
     );
 
     if (!updated) return res.status(404).json({ success: false, message: "Content not found." });
-    res.json({ success: true, message: "Song updated successfully.", data: updated });
+    res.json({ success: true, message: "Updated successfully.", data: updated });
   } catch (err) {
     res.status(500).json({ success: false, message: err.message });
   }
 });
 
-// DELETE /api/content/:id — Delete a song
+// DELETE /api/content/:id
 router.delete("/:id", async (req, res) => {
   try {
     const deleted = await ContentItem.findByIdAndDelete(req.params.id);
