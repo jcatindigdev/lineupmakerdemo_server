@@ -70,19 +70,13 @@ router.get("/", async (req, res) => {
     if (contentType === "chord") {
       conditions.push({ contentType: "chord" });
     } else if (contentType === "song") {
-      // Include explicitly "song" AND legacy docs without the field
       conditions.push({ $or: [{ contentType: "song" }, { contentType: { $exists: false } }] });
     }
 
+    // ── Search by title only ─────────────────────────────────
     if (search) {
       const safe = search.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
-      conditions.push({
-        $or: [
-          { title: { $regex: safe, $options: "i" } },
-          { body:  { $regex: safe, $options: "i" } },
-          { tags:  { $regex: safe, $options: "i" } },
-        ],
-      });
+      conditions.push({ title: { $regex: safe, $options: "i" } });
     }
 
     if (category) conditions.push({ category: { $regex: category, $options: "i" } });
