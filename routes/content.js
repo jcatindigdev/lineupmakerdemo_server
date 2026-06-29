@@ -8,7 +8,7 @@ const ALL_VOICING_PARTS = [
   // Instruments (new)
   "electricGuitar1", "electricGuitar2", "electricGuitar3",
   "bass", "acousticGuitar1", "acousticGuitar2",
-  "violin", "viola", "keys",
+  "violin", "viola", "keys", "bass2", "drums", "keys2", "others",
 ];
 
 function parseVoicings(raw) {

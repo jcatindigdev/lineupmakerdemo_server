@@ -9,7 +9,7 @@ const SINGER_PARTS = ["fullSong", "soprano", "alto", "tenor", "bass", "baritone"
 const INSTRUMENT_PARTS = [
   "electricGuitar1", "electricGuitar2", "electricGuitar3",
   "acousticGuitar1", "acousticGuitar2",
-  "violin", "viola", "keys",
+  "violin", "viola", "keys", "bass2", "drums", "keys2", "others",
 ];
 const ALL_VOICE_PARTS = [...SINGER_PARTS, ...INSTRUMENT_PARTS];
 
@@ -21,6 +21,7 @@ const VOICE_LABELS = {
   electricGuitar1: "Electric Guitar 1", electricGuitar2: "Electric Guitar 2",
   electricGuitar3: "Electric Guitar 3", acousticGuitar1: "Acoustic Guitar 1",
   acousticGuitar2: "Acoustic Guitar 2", violin: "Violin", viola: "Viola", keys: "Keys",
+  bass2: "Bass", drums: "Drums", keys2: "Keys 2", others: "Others",
 };
 
 // ── PDF Generation ──────────────────────────────────────────

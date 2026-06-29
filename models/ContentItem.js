@@ -64,6 +64,10 @@ const contentItemSchema = new mongoose.Schema(
       violin:          { type: String, trim: true, default: "" },
       viola:           { type: String, trim: true, default: "" },
       keys:            { type: String, trim: true, default: "" },
+      bass2:           { type: String, trim: true, default: "" },
+      drums:           { type: String, trim: true, default: "" },
+      keys2:           { type: String, trim: true, default: "" },
+      others:          { type: String, trim: true, default: "" },
     },
 
     // ── Music score link ─────────────────────────────────────
