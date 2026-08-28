@@ -76,6 +76,23 @@ const contentItemSchema = new mongoose.Schema(
       trim: true,
       default: "",
     },
+
+    // ── Chord sheet attachment (photo or PDF) ─────────────────
+    attachmentUrl: {
+      type: String,
+      trim: true,
+      default: "",
+    },
+    attachmentName: {
+      type: String,
+      trim: true,
+      default: "",
+    },
+    attachmentType: {
+      type: String,
+      enum: ["image", "pdf", ""],
+      default: "",
+    },
   },
   { timestamps: true }
 );

@@ -6,6 +6,7 @@ const mongoose = require("mongoose");
 const contentRoutes = require("./routes/content");
 const pdfRoutes = require("./routes/pdf");
 const authRoutes = require("./routes/auth");
+const playlistRoutes = require("./routes/playlists");
 
 const app = express();
 const PORT = process.env.PORT || 5000;
@@ -18,12 +19,16 @@ app.use(cors({
     "https://lineupmakerdemo-client.vercel.app"
   ]
 }));
-app.use(express.json({ limit: "10mb" }));
-app.use(express.urlencoded({ extended: true, limit: "10mb" }));
+// Attachments (chord photos/PDFs) are embedded as base64 in the
+// MongoDB document rather than stored on disk, so the JSON body
+// limit needs enough headroom for an encoded file (see middleware/upload.js).
+app.use(express.json({ limit: "15mb" }));
+app.use(express.urlencoded({ extended: true, limit: "15mb" }));
 
 app.use("/api/content", contentRoutes);
 app.use("/api/pdf", pdfRoutes);
 app.use("/api/auth", authRoutes);
+app.use("/api/playlists", playlistRoutes);
 
 app.get("/api/health", (req, res) => {
   res.json({

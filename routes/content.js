@@ -1,6 +1,7 @@
 const express = require("express");
 const router = express.Router();
 const ContentItem = require("../models/ContentItem");
+const upload = require("../middleware/upload");
 
 const ALL_VOICING_PARTS = [
   // Singers (original)
@@ -30,10 +31,41 @@ function buildVoicings(v) {
   return out;
 }
 
+// POST /api/content/upload
+// Uploads a single photo or PDF attachment (e.g. a scanned chord sheet).
+// The file is base64-encoded and returned as a data URI — nothing is
+// written to disk. Call this first, then pass the returned
+// url/name/type along in the POST/PUT /api/content payload, where it
+// gets stored directly inside the chord's MongoDB document.
+router.post("/upload", (req, res) => {
+  upload.single("file")(req, res, (err) => {
+    if (err) {
+      return res.status(400).json({ success: false, message: err.message });
+    }
+    if (!req.file) {
+      return res.status(400).json({ success: false, message: "No file was uploaded." });
+    }
+
+    const attachmentType = req.file.mimetype === "application/pdf" ? "pdf" : "image";
+    const base64 = req.file.buffer.toString("base64");
+    const attachmentUrl = `data:${req.file.mimetype};base64,${base64}`;
+
+    res.status(201).json({
+      success: true,
+      attachmentUrl,
+      attachmentName: req.file.originalname,
+      attachmentType,
+    });
+  });
+});
+
 // POST /api/content
 router.post("/", async (req, res) => {
   try {
-    const { title, body, category, tags, author, fileType, contentType, voicings, scoreUrl } = req.body;
+    const {
+      title, body, category, tags, author, fileType, contentType, voicings, scoreUrl,
+      attachmentUrl, attachmentName, attachmentType,
+    } = req.body;
 
     if (!title || !body) {
       return res.status(400).json({ success: false, message: "Title and body are required." });
@@ -49,6 +81,9 @@ router.post("/", async (req, res) => {
       contentType: contentType === "chord" ? "chord" : "song",
       voicings: buildVoicings(voicings),
       scoreUrl: scoreUrl?.trim() || "",
+      attachmentUrl: attachmentUrl?.trim() || "",
+      attachmentName: attachmentName?.trim() || "",
+      attachmentType: attachmentType === "pdf" || attachmentType === "image" ? attachmentType : "",
     });
 
     const saved = await item.save();
@@ -120,7 +155,10 @@ router.get("/:id", async (req, res) => {
 // PUT /api/content/:id
 router.put("/:id", async (req, res) => {
   try {
-    const { title, body, category, tags, author, fileType, contentType, voicings, scoreUrl } = req.body;
+    const {
+      title, body, category, tags, author, fileType, contentType, voicings, scoreUrl,
+      attachmentUrl, attachmentName, attachmentType,
+    } = req.body;
 
     const update = {};
     if (title)       update.title       = title;
@@ -130,6 +168,11 @@ router.put("/:id", async (req, res) => {
     if (fileType)    update.fileType    = fileType;
     if (contentType) update.contentType = contentType;
     if (scoreUrl !== undefined) update.scoreUrl = scoreUrl.trim();
+    if (attachmentUrl !== undefined) update.attachmentUrl = attachmentUrl.trim();
+    if (attachmentName !== undefined) update.attachmentName = attachmentName.trim();
+    if (attachmentType !== undefined) {
+      update.attachmentType = (attachmentType === "pdf" || attachmentType === "image") ? attachmentType : "";
+    }
 
     if (tags) {
       update.tags = Array.isArray(tags)
