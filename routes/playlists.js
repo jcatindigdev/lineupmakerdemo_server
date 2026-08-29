@@ -58,6 +58,34 @@ router.get("/:shareId", auth, async (req, res) => {
   }
 });
 
+// POST /api/playlists/:shareId/save — makes the current user their own
+// independent copy of a shared playlist (same title + song/chord list),
+// so it shows up in their own "My Playlists" going forward. This is a
+// snapshot, not a live link — later edits to the original won't carry
+// over to the copy.
+router.post("/:shareId/save", auth, async (req, res) => {
+  try {
+    const source = await Playlist.findOne({ shareId: req.params.shareId });
+    if (!source) {
+      return res.status(404).json({ success: false, message: "Playlist not found." });
+    }
+    if (String(source.owner) === String(req.user.id)) {
+      return res.status(400).json({ success: false, message: "This is already your own playlist." });
+    }
+
+    const saved = await Playlist.create({
+      title: source.title,
+      owner: req.user.id,
+      items: source.items,
+    });
+    const populated = await saved.populate("items");
+
+    res.status(201).json({ success: true, message: "Saved to your playlists!", data: populated });
+  } catch (err) {
+    res.status(500).json({ success: false, message: err.message });
+  }
+});
+
 // PUT /api/playlists/:id — rename or reorder (owner only)
 router.put("/:id", auth, async (req, res) => {
   try {
