@@ -7,6 +7,7 @@ const contentRoutes = require("./routes/content");
 const pdfRoutes = require("./routes/pdf");
 const authRoutes = require("./routes/auth");
 const playlistRoutes = require("./routes/playlists");
+const User = require("./models/User");
 
 const app = express();
 const PORT = process.env.PORT || 5000;
@@ -50,8 +51,20 @@ app.use((err, req, res, next) => {
 
 mongoose
   .connect(MONGODB_URI)
-  .then(() => {
-    console.log("✅ MongoDB connected:", MONGODB_URI);
+  .then(async () => {
+    console.log("✅ MongoDB connected");
+    // Keeps indexes in sync with the current schema on every deploy —
+    // in particular this rebuilds the old plain unique index on
+    // username/email (which only allowed ONE user to ever have a
+    // missing value) into the sparse unique index the schema now
+    // declares, so multiple users can each have just a username or
+    // just an email without colliding.
+    try {
+      await User.syncIndexes();
+      console.log("✅ User indexes synced");
+    } catch (err) {
+      console.error("⚠️ User.syncIndexes() failed:", err.message);
+    }
     app.listen(PORT, () => {
       console.log(`🚀 Server running at http://localhost:${PORT}`);
       console.log(`📄 API docs: http://localhost:${PORT}/api/health`);
