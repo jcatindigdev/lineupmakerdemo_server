@@ -22,19 +22,21 @@ router.post("/admin/create-user", auth, isAdmin, async (req, res) => {
       isAdmin: newUserIsAdmin
     } = req.body;
 
-    if (!username || !email || !password) {
+    const trimmedUsername = username ? username.trim() : "";
+    const trimmedEmail = email ? email.trim().toLowerCase() : "";
+
+    if (!password || (!trimmedUsername && !trimmedEmail)) {
       return res.status(400).json({
         success: false,
-        message: "All fields are required"
+        message: "Password is required, along with a username and/or an email."
       });
     }
 
-    const existingUser = await User.findOne({
-      $or: [
-        { email: email.toLowerCase() },
-        { username }
-      ]
-    });
+    const orConditions = [];
+    if (trimmedUsername) orConditions.push({ username: trimmedUsername });
+    if (trimmedEmail) orConditions.push({ email: trimmedEmail });
+
+    const existingUser = await User.findOne({ $or: orConditions });
 
     if (existingUser) {
       return res.status(400).json({
@@ -46,8 +48,8 @@ router.post("/admin/create-user", auth, isAdmin, async (req, res) => {
     const hashedPassword = await bcrypt.hash(password, 10);
 
     const user = await User.create({
-      username,
-      email: email.toLowerCase(),
+      ...(trimmedUsername && { username: trimmedUsername }),
+      ...(trimmedEmail && { email: trimmedEmail }),
       password: hashedPassword,
       isAdmin: Boolean(newUserIsAdmin)
     });
@@ -80,17 +82,21 @@ router.post("/admin/create-user", auth, isAdmin, async (req, res) => {
 */
 router.post("/login", async (req, res) => {
   try {
-    const { email, password } = req.body;
+    const identifier = (req.body.identifier || req.body.email || "").trim();
+    const { password } = req.body;
 
-    if (!email || !password) {
+    if (!identifier || !password) {
       return res.status(400).json({
         success: false,
-        message: "Email and password are required"
+        message: "Username/email and password are required"
       });
     }
 
     const user = await User.findOne({
-      email: email.toLowerCase()
+      $or: [
+        { email: identifier.toLowerCase() },
+        { username: identifier }
+      ]
     });
 
     if (!user) {
@@ -141,6 +147,107 @@ router.post("/login", async (req, res) => {
       success: false,
       message: "Server error"
     });
+  }
+});
+
+/*
+|--------------------------------------------------------------------------
+| UPDATE PROFILE (username / email) — logged-in user only
+|--------------------------------------------------------------------------
+*/
+router.put("/profile", auth, async (req, res) => {
+  try {
+    const { username, email } = req.body;
+    const trimmedUsername = (username || "").trim();
+    const trimmedEmail = (email || "").trim().toLowerCase();
+
+    if (!trimmedUsername && !trimmedEmail) {
+      return res.status(400).json({
+        success: false,
+        message: "Provide a username and/or an email to update."
+      });
+    }
+
+    const user = await User.findById(req.user.id);
+    if (!user) {
+      return res.status(404).json({ success: false, message: "User not found." });
+    }
+
+    if (trimmedUsername && trimmedUsername !== user.username) {
+      const clash = await User.findOne({ username: trimmedUsername, _id: { $ne: user._id } });
+      if (clash) {
+        return res.status(400).json({ success: false, message: "That username is already taken." });
+      }
+      user.username = trimmedUsername;
+    }
+
+    if (trimmedEmail && trimmedEmail !== user.email) {
+      const clash = await User.findOne({ email: trimmedEmail, _id: { $ne: user._id } });
+      if (clash) {
+        return res.status(400).json({ success: false, message: "That email is already in use." });
+      }
+      user.email = trimmedEmail;
+    }
+
+    await user.save();
+
+    res.json({
+      success: true,
+      message: "Profile updated.",
+      user: {
+        id: user._id,
+        username: user.username,
+        email: user.email,
+        isAdmin: user.isAdmin
+      }
+    });
+
+  } catch (error) {
+    console.error("Update Profile Error:", error);
+    res.status(500).json({ success: false, message: "Server error" });
+  }
+});
+
+/*
+|--------------------------------------------------------------------------
+| CHANGE PASSWORD — logged-in user only, requires current password
+|--------------------------------------------------------------------------
+*/
+router.put("/change-password", auth, async (req, res) => {
+  try {
+    const { currentPassword, newPassword } = req.body;
+
+    if (!currentPassword || !newPassword) {
+      return res.status(400).json({
+        success: false,
+        message: "Current and new password are required."
+      });
+    }
+    if (newPassword.length < 6) {
+      return res.status(400).json({
+        success: false,
+        message: "New password must be at least 6 characters."
+      });
+    }
+
+    const user = await User.findById(req.user.id);
+    if (!user) {
+      return res.status(404).json({ success: false, message: "User not found." });
+    }
+
+    const isMatch = await bcrypt.compare(currentPassword, user.password);
+    if (!isMatch) {
+      return res.status(400).json({ success: false, message: "Current password is incorrect." });
+    }
+
+    user.password = await bcrypt.hash(newPassword, 10);
+    await user.save();
+
+    res.json({ success: true, message: "Password changed successfully." });
+
+  } catch (error) {
+    console.error("Change Password Error:", error);
+    res.status(500).json({ success: false, message: "Server error" });
   }
 });
 
