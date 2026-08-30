@@ -21,6 +21,39 @@ const VOICE_LABELS = {
   bass2: "Bass", drums: "Drums", keys2: "Keys 2", others: "Others",
 };
 
+// Chord bodies created with the rich-text editor (bold/italic/highlight)
+// are stored as HTML, not plain text — e.g. "<b>C</b>&nbsp;&nbsp;<i>G</i>"
+// with each line wrapped in its own <div>. Exporting that straight into
+// a PDF/DOCX would print the literal tags as garbage characters, so this
+// converts it back to plain text first: line-break tags become real
+// newlines, remaining tags are stripped, and entities are decoded.
+// Legacy chords saved before this feature existed are already plain
+// text and are left completely untouched.
+function looksLikeFormattedHtml(str) {
+  return /<\/?(b|i|span|div|br)\b/i.test(str || "");
+}
+
+function htmlToPlainText(html) {
+  if (!html) return "";
+  if (!looksLikeFormattedHtml(html)) return html;
+
+  let text = html;
+  text = text.replace(/<br\s*\/?>/gi, "\n");
+  text = text.replace(/<\/div>/gi, "\n");
+  text = text.replace(/<\/p>/gi, "\n");
+  text = text.replace(/<[^>]+>/g, "");
+  text = text
+    .replace(/&nbsp;/gi, " ")
+    .replace(/&amp;/gi, "&")
+    .replace(/&lt;/gi, "<")
+    .replace(/&gt;/gi, ">")
+    .replace(/&quot;/gi, "\"")
+    .replace(/&#39;/gi, "'");
+  text = text.replace(/^\n+/, "");
+  text = text.replace(/\n{3,}/g, "\n\n");
+  return text;
+}
+
 router.post("/generate", async (req, res) => {
   try {
     const { items, title, author, includeMetadata } = req.body;
@@ -145,7 +178,7 @@ router.post("/generate", async (req, res) => {
       const bodyParaGap = isChord ? 2 : 6;
 
       doc.fill("#2c2c2c").fontSize(bodySize).font(bodyFont)
-        .text(item.body, MARGIN, BODY_START, {
+        .text(htmlToPlainText(item.body), MARGIN, BODY_START, {
           width: PAGE_W - MARGIN * 2,
           lineGap: bodyLineGap,
           paragraphGap: bodyParaGap,
@@ -308,7 +341,7 @@ router.post("/generate-docx", async (req, res) => {
 
       children.push(new Paragraph({ text: "" }));
 
-      (item.body || "").split("\n").forEach((line) => {
+      (htmlToPlainText(item.body) || "").split("\n").forEach((line) => {
         const run = { text: line === "" ? " " : line, size: bodySize };
         if (bodyFont) run.font = bodyFont;
         children.push(new Paragraph({ children: [new TextRun(run)], spacing: { after: 0 } }));
