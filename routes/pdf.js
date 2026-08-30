@@ -1,8 +1,32 @@
 const express = require("express");
 const router = express.Router();
+const path = require("path");
 const PDFDocument = require("pdfkit");
 const ContentItem = require("../models/ContentItem");
 const { Document, Packer, Paragraph, TextRun, HeadingLevel, AlignmentType, ExternalHyperlink } = require("docx");
+
+// PDFKit's built-in fonts (Helvetica, Courier, etc.) only support the
+// old single-byte WinAnsi character set. Anything outside that — flat/
+// sharp chord symbols (♭ ♯), curly quotes, em-dashes, ™, and so on —
+// doesn't just fail to render, it comes out as garbled repeated
+// characters, since those bytes get misread as different WinAnsi
+// characters entirely. DejaVu Sans has full Unicode coverage including
+// musical symbols, so embedding it fixes this permanently instead of
+// chasing down each new unsupported character one at a time.
+const FONT_DIR = path.join(__dirname, "..", "fonts");
+const FONTS = {
+  regular:    path.join(FONT_DIR, "DejaVuSans.ttf"),
+  bold:       path.join(FONT_DIR, "DejaVuSans-Bold.ttf"),
+  mono:       path.join(FONT_DIR, "DejaVuSansMono.ttf"),
+  monoBold:   path.join(FONT_DIR, "DejaVuSansMono-Bold.ttf"),
+};
+
+function registerFonts(doc) {
+  doc.registerFont("Body", FONTS.regular);
+  doc.registerFont("Body-Bold", FONTS.bold);
+  doc.registerFont("Mono", FONTS.mono);
+  doc.registerFont("Mono-Bold", FONTS.monoBold);
+}
 
 const SINGER_PARTS = ["fullSong", "soprano", "alto", "tenor", "bass", "baritone", "solo"];
 const INSTRUMENT_PARTS = [
@@ -51,9 +75,9 @@ function normalizeSmartPunctuation(text) {
     .replace(/\u00AE/g, "(R)");
 }
 
-function htmlToPlainText(html) {
+function htmlToPlainText(html, { keepTypography = false } = {}) {
   if (!html) return "";
-  if (!looksLikeFormattedHtml(html)) return normalizeSmartPunctuation(html);
+  if (!looksLikeFormattedHtml(html)) return keepTypography ? html : normalizeSmartPunctuation(html);
 
   let text = html;
   text = text.replace(/<br\s*\/?>/gi, "\n");
@@ -69,7 +93,7 @@ function htmlToPlainText(html) {
     .replace(/&#39;/gi, "'");
   text = text.replace(/^\n+/, "");
   text = text.replace(/\n{3,}/g, "\n\n");
-  return normalizeSmartPunctuation(text);
+  return keepTypography ? text : normalizeSmartPunctuation(text);
 }
 
 router.post("/generate", async (req, res) => {
@@ -111,6 +135,7 @@ router.post("/generate", async (req, res) => {
         Creator: "PDF Builder App",
       },
     });
+    registerFonts(doc);
 
     const safeTitle = (title || "document").replace(/[^a-z0-9_\-]/gi, "_");
     res.setHeader("Content-Type", "application/pdf");
@@ -118,10 +143,10 @@ router.post("/generate", async (req, res) => {
     doc.pipe(res);
 
     doc.rect(0, 0, PAGE_W, PAGE_H).fill("#1a1a2e");
-    doc.fill("#e8d5b7").fontSize(34).font("Helvetica-Bold")
+    doc.fill("#e8d5b7").fontSize(34).font("Body-Bold")
       .text(title || "Generated Document", MARGIN, 210, { align: "center", width: PAGE_W - MARGIN * 2 });
     if (author) {
-      doc.fontSize(14).font("Helvetica").fill("#a09080")
+      doc.fontSize(14).font("Body").fill("#a09080")
         .text(`by ${author}`, MARGIN, 280, { align: "center", width: PAGE_W - MARGIN * 2 });
     }
     doc.fontSize(11).fill("#706050")
@@ -142,7 +167,7 @@ router.post("/generate", async (req, res) => {
       .text(countText, MARGIN, 338, { align: "center", width: PAGE_W - MARGIN * 2 });
 
     doc.addPage();
-    doc.fill("#1a1a2e").fontSize(22).font("Helvetica-Bold").text("Table of Contents", MARGIN, MARGIN);
+    doc.fill("#1a1a2e").fontSize(22).font("Body-Bold").text("Table of Contents", MARGIN, MARGIN);
     doc.moveTo(MARGIN, 94).lineTo(PAGE_W - MARGIN, 94).strokeColor("#c9a96e").lineWidth(1).stroke();
 
     let tocY = 112;
@@ -150,7 +175,7 @@ router.post("/generate", async (req, res) => {
       if (tocY < CONTENT_BOT - 20) {
         const isChord = item.contentType === "chord";
         const tocLabel = isChord ? `[Chords] ${item.title}` : item.title;
-        doc.fill("#222222").fontSize(12).font("Helvetica")
+        doc.fill("#222222").fontSize(12).font("Body")
           .text(`${idx + 1}.  ${tocLabel}`, MARGIN, tocY, { width: PAGE_W - MARGIN * 2 - 90 });
         doc.fill("#999999").fontSize(10)
           .text(item.category || "", PAGE_W - MARGIN - 90, tocY, { width: 90, align: "right" });
@@ -165,14 +190,14 @@ router.post("/generate", async (req, res) => {
       doc.rect(0, 0, PAGE_W, 7).fill("#c9a96e");
 
       doc.circle(79, 68, 19).fill("#1a1a2e");
-      doc.fill("#e8d5b7").fontSize(13).font("Helvetica-Bold")
+      doc.fill("#e8d5b7").fontSize(13).font("Body-Bold")
         .text(`${idx + 1}`, 64, 62, { width: 30, align: "center" });
 
-      doc.fill("#1a1a2e").fontSize(18).font("Helvetica-Bold")
+      doc.fill("#1a1a2e").fontSize(18).font("Body-Bold")
         .text(item.title, 112, 54, { width: PAGE_W - 112 - MARGIN, lineBreak: false });
 
       if (isChord) {
-        doc.fill("#c9a96e").fontSize(9).font("Helvetica")
+        doc.fill("#c9a96e").fontSize(9).font("Body")
           .text("[Chords]", 112, 76, { width: PAGE_W - 112 - MARGIN, lineBreak: false });
       }
 
@@ -183,20 +208,20 @@ router.post("/generate", async (req, res) => {
         if (item.tags && item.tags.length) meta.push(`Tags: ${item.tags.join(", ")}`);
         if (meta.length) {
           const metaY = isChord ? 87 : 76;
-          doc.fill("#999999").fontSize(9).font("Helvetica")
+          doc.fill("#999999").fontSize(9).font("Body")
             .text(meta.join("  ·  "), 112, metaY, { width: PAGE_W - 112 - MARGIN, lineBreak: false });
         }
       }
 
       doc.moveTo(MARGIN, 100).lineTo(PAGE_W - MARGIN, 100).strokeColor("#ddd0c0").lineWidth(0.5).stroke();
 
-      const bodyFont = isChord ? "Courier" : "Helvetica";
+      const bodyFont = isChord ? "Mono" : "Body";
       const bodySize = isChord ? 10 : 11;
       const bodyLineGap = isChord ? 1 : 3;
       const bodyParaGap = isChord ? 2 : 6;
 
       doc.fill("#2c2c2c").fontSize(bodySize).font(bodyFont)
-        .text(htmlToPlainText(item.body), MARGIN, BODY_START, {
+        .text(htmlToPlainText(item.body, { keepTypography: true }), MARGIN, BODY_START, {
           width: PAGE_W - MARGIN * 2,
           lineGap: bodyLineGap,
           paragraphGap: bodyParaGap,
@@ -213,16 +238,16 @@ router.post("/generate", async (req, res) => {
           .strokeColor("#e8d5b7").lineWidth(1).stroke();
         doc.moveDown(0.5);
 
-        doc.fillColor("#c9a96e").fontSize(8).font("Helvetica-Bold")
+        doc.fillColor("#c9a96e").fontSize(8).font("Body-Bold")
           .text("RESOURCES", MARGIN, doc.y);
         doc.moveDown(0.4);
 
         if (activeSingers.length) {
-          doc.fillColor("#aaaaaa").fontSize(7).font("Helvetica-Bold")
+          doc.fillColor("#aaaaaa").fontSize(7).font("Body-Bold")
             .text("SINGERS", MARGIN + 8, doc.y);
           doc.moveDown(0.3);
           activeSingers.forEach((part) => {
-            doc.fillColor("#666666").fontSize(9).font("Helvetica")
+            doc.fillColor("#666666").fontSize(9).font("Body")
               .text(`${VOICE_LABELS[part]}:  `, MARGIN + 16, doc.y, { continued: true });
             doc.fillColor("#1a5ca8").fontSize(9)
               .text("Open audio", { link: voicings[part], underline: true });
@@ -231,11 +256,11 @@ router.post("/generate", async (req, res) => {
         }
 
         if (activeInstr.length) {
-          doc.fillColor("#aaaaaa").fontSize(7).font("Helvetica-Bold")
+          doc.fillColor("#aaaaaa").fontSize(7).font("Body-Bold")
             .text("INSTRUMENTS", MARGIN + 8, doc.y);
           doc.moveDown(0.3);
           activeInstr.forEach((part) => {
-            doc.fillColor("#666666").fontSize(9).font("Helvetica")
+            doc.fillColor("#666666").fontSize(9).font("Body")
               .text(`${VOICE_LABELS[part]}:  `, MARGIN + 16, doc.y, { continued: true });
             doc.fillColor("#1a5ca8").fontSize(9)
               .text("Open audio", { link: voicings[part], underline: true });
@@ -244,7 +269,7 @@ router.post("/generate", async (req, res) => {
         }
 
         if (hasScore) {
-          doc.fillColor("#666666").fontSize(9).font("Helvetica")
+          doc.fillColor("#666666").fontSize(9).font("Body")
             .text("Music Score:  ", MARGIN + 8, doc.y, { continued: true });
           doc.fillColor("#1a5ca8").fontSize(9)
             .text("View music score", { link: item.scoreUrl, underline: true });
@@ -254,7 +279,7 @@ router.post("/generate", async (req, res) => {
       doc.moveTo(MARGIN, FOOTER_Y - 4)
         .lineTo(PAGE_W - MARGIN, FOOTER_Y - 4)
         .strokeColor("#eeeeee").lineWidth(0.5).stroke();
-      doc.fillColor("#cccccc").fontSize(8).font("Helvetica")
+      doc.fillColor("#cccccc").fontSize(8).font("Body")
         .text(`${title || "Document"}  —  Section ${idx + 1} of ${orderedItems.length}`,
           MARGIN, FOOTER_Y, { width: PAGE_W - MARGIN * 2, align: "center", lineBreak: false });
     });
