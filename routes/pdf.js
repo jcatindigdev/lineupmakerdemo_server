@@ -75,11 +75,29 @@ function normalizeSmartPunctuation(text) {
     .replace(/\u00AE/g, "(R)");
 }
 
+// Tab characters and zero-width spaces are common when a chord chart
+// was originally typed or pasted from Word/Google Docs (where Tab is a
+// normal way to align text) into the chord editor. Unlike a normal or
+// non-breaking space, PDFKit's fonts have no blank glyph for these —
+// they map to the font's "missing character" placeholder and render as
+// a visible box for every single one, which is what shows up as a row
+// of unexplained marks in exported chord charts. These always get
+// cleaned up, regardless of typography preferences, since there's no
+// scenario where showing a literal tab character as a box is wanted.
+function sanitizeInvisibleChars(text) {
+  if (!text) return "";
+  return text
+    .replace(/\t/g, "    ")
+    .replace(/[\u200B\u200C\u200D\uFEFF]/g, "")
+    .replace(/\uFFFD/g, "");
+}
+
 function htmlToPlainText(html, { keepTypography = false } = {}) {
   if (!html) return "";
-  if (!looksLikeFormattedHtml(html)) return keepTypography ? html : normalizeSmartPunctuation(html);
+  let cleaned = sanitizeInvisibleChars(html);
+  if (!looksLikeFormattedHtml(cleaned)) return keepTypography ? cleaned : normalizeSmartPunctuation(cleaned);
 
-  let text = html;
+  let text = cleaned;
   text = text.replace(/<br\s*\/?>/gi, "\n");
   text = text.replace(/<\/div>/gi, "\n");
   text = text.replace(/<\/p>/gi, "\n");
