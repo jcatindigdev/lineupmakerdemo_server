@@ -33,28 +33,19 @@ const contentItemSchema = new mongoose.Schema(
       default: "text",
     },
 
-    // ── Content type ─────────────────────────────────────────
-    // "song"  → appears in Song Library (singers)
-    // "chord" → appears in Chord Library (musicians)
     contentType: {
       type: String,
       enum: ["song", "chord"],
       default: "song",
     },
 
-    // ── Audio links ──────────────────────────────────────────
-    // Singer voicings (original)
-    // Instrument links (new)
-    // Both coexist in the same voicings object
     voicings: {
-      // ── Singers ──
       fullSong: { type: String, trim: true, default: "" },
       soprano:  { type: String, trim: true, default: "" },
       alto:     { type: String, trim: true, default: "" },
       tenor:    { type: String, trim: true, default: "" },
       baritone: { type: String, trim: true, default: "" },
       solo:     { type: String, trim: true, default: "" },
-      // ── Instruments ──
       electricGuitar1: { type: String, trim: true, default: "" },
       electricGuitar2: { type: String, trim: true, default: "" },
       electricGuitar3: { type: String, trim: true, default: "" },
@@ -70,14 +61,12 @@ const contentItemSchema = new mongoose.Schema(
       others:          { type: String, trim: true, default: "" },
     },
 
-    // ── Music score link ─────────────────────────────────────
     scoreUrl: {
       type: String,
       trim: true,
       default: "",
     },
 
-    // ── Chord sheet attachment (photo or PDF) ─────────────────
     attachmentUrl: {
       type: String,
       trim: true,

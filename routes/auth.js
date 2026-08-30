@@ -8,11 +8,7 @@ const isAdmin = require("../middleware/admin");
 
 const router = express.Router();
 
-/*
-|--------------------------------------------------------------------------
-| ADMIN CREATE USER / ADMIN
-|--------------------------------------------------------------------------
-*/
+
 router.post("/admin/create-user", auth, isAdmin, async (req, res) => {
   try {
     const {
@@ -75,11 +71,7 @@ router.post("/admin/create-user", auth, isAdmin, async (req, res) => {
   }
 });
 
-/*
-|--------------------------------------------------------------------------
-| LOGIN
-|--------------------------------------------------------------------------
-*/
+
 router.post("/login", async (req, res) => {
   try {
     const identifier = (req.body.identifier || req.body.email || "").trim();
@@ -150,11 +142,7 @@ router.post("/login", async (req, res) => {
   }
 });
 
-/*
-|--------------------------------------------------------------------------
-| UPDATE PROFILE (username / email) — logged-in user only
-|--------------------------------------------------------------------------
-*/
+
 router.put("/profile", auth, async (req, res) => {
   try {
     const { username, email } = req.body;
@@ -208,11 +196,7 @@ router.put("/profile", auth, async (req, res) => {
   }
 });
 
-/*
-|--------------------------------------------------------------------------
-| CHANGE PASSWORD — logged-in user only, requires current password
-|--------------------------------------------------------------------------
-*/
+
 router.put("/change-password", auth, async (req, res) => {
   try {
     const { currentPassword, newPassword } = req.body;
@@ -251,11 +235,7 @@ router.put("/change-password", auth, async (req, res) => {
   }
 });
 
-/*
-|--------------------------------------------------------------------------
-| CURRENT USER
-|--------------------------------------------------------------------------
-*/
+
 router.get("/me", auth, async (req, res) => {
   try {
 

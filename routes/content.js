@@ -4,9 +4,7 @@ const ContentItem = require("../models/ContentItem");
 const upload = require("../middleware/upload");
 
 const ALL_VOICING_PARTS = [
-  // Singers (original)
   "fullSong", "soprano", "alto", "tenor", "baritone", "solo",
-  // Instruments (new)
   "electricGuitar1", "electricGuitar2", "electricGuitar3",
   "bass", "acousticGuitar1", "acousticGuitar2",
   "violin", "viola", "keys", "bass2", "drums", "keys2", "others",
@@ -31,12 +29,6 @@ function buildVoicings(v) {
   return out;
 }
 
-// POST /api/content/upload
-// Uploads a single photo or PDF attachment (e.g. a scanned chord sheet).
-// The file is base64-encoded and returned as a data URI — nothing is
-// written to disk. Call this first, then pass the returned
-// url/name/type along in the POST/PUT /api/content payload, where it
-// gets stored directly inside the chord's MongoDB document.
 router.post("/upload", (req, res) => {
   upload.single("file")(req, res, (err) => {
     if (err) {
@@ -59,7 +51,6 @@ router.post("/upload", (req, res) => {
   });
 });
 
-// POST /api/content
 router.post("/", async (req, res) => {
   try {
     const {
@@ -93,10 +84,6 @@ router.post("/", async (req, res) => {
   }
 });
 
-// GET /api/content
-// ?contentType=song  → songs only (incl. legacy docs without contentType)
-// ?contentType=chord → chord charts only
-// (no contentType param) → all items
 router.get("/", async (req, res) => {
   try {
     const { search, category, tags, contentType, page = 1, limit = 20 } = req.query;
@@ -108,7 +95,6 @@ router.get("/", async (req, res) => {
       conditions.push({ $or: [{ contentType: "song" }, { contentType: { $exists: false } }] });
     }
 
-    // ── Search by title only ─────────────────────────────────
     if (search) {
       const safe = search.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
       conditions.push({ title: { $regex: safe, $options: "i" } });
@@ -141,7 +127,6 @@ router.get("/", async (req, res) => {
   }
 });
 
-// GET /api/content/:id
 router.get("/:id", async (req, res) => {
   try {
     const item = await ContentItem.findById(req.params.id);
@@ -152,7 +137,6 @@ router.get("/:id", async (req, res) => {
   }
 });
 
-// PUT /api/content/:id
 router.put("/:id", async (req, res) => {
   try {
     const {
@@ -197,7 +181,6 @@ router.put("/:id", async (req, res) => {
   }
 });
 
-// DELETE /api/content/:id
 router.delete("/:id", async (req, res) => {
   try {
     const deleted = await ContentItem.findByIdAndDelete(req.params.id);

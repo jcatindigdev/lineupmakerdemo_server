@@ -4,7 +4,6 @@ const PDFDocument = require("pdfkit");
 const ContentItem = require("../models/ContentItem");
 const { Document, Packer, Paragraph, TextRun, HeadingLevel, AlignmentType, ExternalHyperlink } = require("docx");
 
-// ── Voice / Instrument parts ────────────────────────────────
 const SINGER_PARTS = ["fullSong", "soprano", "alto", "tenor", "bass", "baritone", "solo"];
 const INSTRUMENT_PARTS = [
   "electricGuitar1", "electricGuitar2", "electricGuitar3",
@@ -14,17 +13,14 @@ const INSTRUMENT_PARTS = [
 const ALL_VOICE_PARTS = [...SINGER_PARTS, ...INSTRUMENT_PARTS];
 
 const VOICE_LABELS = {
-  // Singers
   fullSong: "Full Song", soprano: "Soprano", alto: "Alto",
   tenor: "Tenor", bass: "Bass", baritone: "Baritone", solo: "Solo",
-  // Instruments
   electricGuitar1: "Electric Guitar 1", electricGuitar2: "Electric Guitar 2",
   electricGuitar3: "Electric Guitar 3", acousticGuitar1: "Acoustic Guitar 1",
   acousticGuitar2: "Acoustic Guitar 2", violin: "Violin", viola: "Viola", keys: "Keys",
   bass2: "Bass", drums: "Drums", keys2: "Keys 2", others: "Others",
 };
 
-// ── PDF Generation ──────────────────────────────────────────
 router.post("/generate", async (req, res) => {
   try {
     const { items, title, author, includeMetadata } = req.body;
@@ -70,7 +66,6 @@ router.post("/generate", async (req, res) => {
     res.setHeader("Content-Disposition", `attachment; filename="${safeTitle}.pdf"`);
     doc.pipe(res);
 
-    // ── Cover Page ──────────────────────────────────────────
     doc.rect(0, 0, PAGE_W, PAGE_H).fill("#1a1a2e");
     doc.fill("#e8d5b7").fontSize(34).font("Helvetica-Bold")
       .text(title || "Generated Document", MARGIN, 210, { align: "center", width: PAGE_W - MARGIN * 2 });
@@ -116,15 +111,12 @@ router.post("/generate", async (req, res) => {
       const isChord = item.contentType === "chord";
       doc.addPage();
 
-      // Gold bar
       doc.rect(0, 0, PAGE_W, 7).fill("#c9a96e");
 
-      // Badge
       doc.circle(79, 68, 19).fill("#1a1a2e");
       doc.fill("#e8d5b7").fontSize(13).font("Helvetica-Bold")
         .text(`${idx + 1}`, 64, 62, { width: 30, align: "center" });
 
-      // Title
       doc.fill("#1a1a2e").fontSize(18).font("Helvetica-Bold")
         .text(item.title, 112, 54, { width: PAGE_W - 112 - MARGIN, lineBreak: false });
 
@@ -133,7 +125,6 @@ router.post("/generate", async (req, res) => {
           .text("[Chords]", 112, 76, { width: PAGE_W - 112 - MARGIN, lineBreak: false });
       }
 
-      // Metadata
       if (includeMetadata) {
         const meta = [];
         if (item.author && item.author !== "Anonymous") meta.push(`Author: ${item.author}`);
@@ -146,10 +137,8 @@ router.post("/generate", async (req, res) => {
         }
       }
 
-      // Divider
       doc.moveTo(MARGIN, 100).lineTo(PAGE_W - MARGIN, 100).strokeColor("#ddd0c0").lineWidth(0.5).stroke();
 
-      // Body — Courier for chords, Helvetica for songs
       const bodyFont = isChord ? "Courier" : "Helvetica";
       const bodySize = isChord ? 10 : 11;
       const bodyLineGap = isChord ? 1 : 3;
@@ -162,7 +151,6 @@ router.post("/generate", async (req, res) => {
           paragraphGap: bodyParaGap,
         });
 
-      // ── Resources section ───────────────────────────────
       const voicings       = item.voicings || {};
       const activeSingers  = SINGER_PARTS.filter(p => voicings[p]);
       const activeInstr    = INSTRUMENT_PARTS.filter(p => voicings[p]);
@@ -178,7 +166,6 @@ router.post("/generate", async (req, res) => {
           .text("RESOURCES", MARGIN, doc.y);
         doc.moveDown(0.4);
 
-        // Singers sub-group
         if (activeSingers.length) {
           doc.fillColor("#aaaaaa").fontSize(7).font("Helvetica-Bold")
             .text("SINGERS", MARGIN + 8, doc.y);
@@ -192,7 +179,6 @@ router.post("/generate", async (req, res) => {
           doc.moveDown(0.3);
         }
 
-        // Instruments sub-group
         if (activeInstr.length) {
           doc.fillColor("#aaaaaa").fontSize(7).font("Helvetica-Bold")
             .text("INSTRUMENTS", MARGIN + 8, doc.y);
@@ -206,7 +192,6 @@ router.post("/generate", async (req, res) => {
           doc.moveDown(0.3);
         }
 
-        // Score
         if (hasScore) {
           doc.fillColor("#666666").fontSize(9).font("Helvetica")
             .text("Music Score:  ", MARGIN + 8, doc.y, { continued: true });
@@ -215,7 +200,6 @@ router.post("/generate", async (req, res) => {
         }
       }
 
-      // Footer
       doc.moveTo(MARGIN, FOOTER_Y - 4)
         .lineTo(PAGE_W - MARGIN, FOOTER_Y - 4)
         .strokeColor("#eeeeee").lineWidth(0.5).stroke();
@@ -231,7 +215,6 @@ router.post("/generate", async (req, res) => {
   }
 });
 
-// ── JSON Preview ────────────────────────────────────────────
 router.post("/preview", async (req, res) => {
   try {
     const { items } = req.body;
@@ -257,7 +240,6 @@ router.post("/preview", async (req, res) => {
   }
 });
 
-// ── DOCX Generation ─────────────────────────────────────────
 router.post("/generate-docx", async (req, res) => {
   try {
     const { items, title, author, includeMetadata } = req.body;
@@ -299,7 +281,6 @@ router.post("/generate-docx", async (req, res) => {
       }));
     });
 
-    // Sections
     orderedItems.forEach((item) => {
       const isChord  = item.contentType === "chord";
       const bodyFont = isChord ? "Courier New" : undefined;
@@ -327,14 +308,12 @@ router.post("/generate-docx", async (req, res) => {
 
       children.push(new Paragraph({ text: "" }));
 
-      // Body — Courier New for chords
       (item.body || "").split("\n").forEach((line) => {
         const run = { text: line === "" ? " " : line, size: bodySize };
         if (bodyFont) run.font = bodyFont;
         children.push(new Paragraph({ children: [new TextRun(run)], spacing: { after: 0 } }));
       });
 
-      // Resources
       const voicings      = item.voicings || {};
       const activeSingers = SINGER_PARTS.filter(p => voicings[p]);
       const activeInstr   = INSTRUMENT_PARTS.filter(p => voicings[p]);

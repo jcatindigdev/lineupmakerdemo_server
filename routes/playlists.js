@@ -3,12 +3,6 @@ const router = express.Router();
 const Playlist = require("../models/Playlist");
 const auth = require("../middleware/auth");
 
-// Every route below requires `auth` — this is what keeps shared
-// links private: having the link isn't enough, the requester also
-// has to be signed in with a valid token before the server will
-// hand back the playlist's songs/chords.
-
-// POST /api/playlists — create a playlist from an ordered list of content item ids
 router.post("/", auth, async (req, res) => {
   try {
     const { title, items } = req.body;
@@ -32,9 +26,6 @@ router.post("/", auth, async (req, res) => {
   }
 });
 
-// GET /api/playlists/mine — playlists created by the logged-in user
-// NOTE: this must stay registered before GET /:shareId, or Express
-// will try to match "mine" as a shareId instead.
 router.get("/mine", auth, async (req, res) => {
   try {
     const playlists = await Playlist.find({ owner: req.user.id })
@@ -46,8 +37,6 @@ router.get("/mine", auth, async (req, res) => {
   }
 });
 
-// GET /api/playlists/:shareId — fetch a playlist for playback.
-// Any logged-in user can open it via the link, not just the owner.
 router.get("/:shareId", auth, async (req, res) => {
   try {
     const playlist = await Playlist.findOne({ shareId: req.params.shareId }).populate("items");
@@ -58,11 +47,6 @@ router.get("/:shareId", auth, async (req, res) => {
   }
 });
 
-// POST /api/playlists/:shareId/save — makes the current user their own
-// independent copy of a shared playlist (same title + song/chord list),
-// so it shows up in their own "My Playlists" going forward. This is a
-// snapshot, not a live link — later edits to the original won't carry
-// over to the copy.
 router.post("/:shareId/save", auth, async (req, res) => {
   try {
     const source = await Playlist.findOne({ shareId: req.params.shareId });
@@ -86,7 +70,6 @@ router.post("/:shareId/save", auth, async (req, res) => {
   }
 });
 
-// PUT /api/playlists/:id — rename or reorder (owner only)
 router.put("/:id", auth, async (req, res) => {
   try {
     const playlist = await Playlist.findById(req.params.id);
@@ -106,7 +89,6 @@ router.put("/:id", auth, async (req, res) => {
   }
 });
 
-// DELETE /api/playlists/:id — owner only
 router.delete("/:id", auth, async (req, res) => {
   try {
     const playlist = await Playlist.findById(req.params.id);

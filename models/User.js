@@ -5,14 +5,14 @@ const UserSchema = new mongoose.Schema(
     username: {
       type: String,
       unique: true,
-      sparse: true, // allows many users to have no username without unique-index clashes
+      sparse: true,
       trim: true,
     },
     email: {
       type: String,
       unique: true,
-      sparse: true, // allows many users to have no email without unique-index clashes
-      lowercase: true, // Forces all records to be consistent
+      sparse: true,
+      lowercase: true,
       trim: true,
     },
     password: {
@@ -29,8 +29,6 @@ const UserSchema = new mongoose.Schema(
   }
 );
 
-// A user needs at least one way to log in — enforced here as a
-// safety net in addition to the check in routes/auth.js.
 UserSchema.pre("validate", function (next) {
   if (!this.username && !this.email) {
     this.invalidate("username", "Either a username or an email is required.");
