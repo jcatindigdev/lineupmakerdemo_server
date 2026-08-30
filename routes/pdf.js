@@ -33,9 +33,27 @@ function looksLikeFormattedHtml(str) {
   return /<\/?(b|i|span|div|br)\b/i.test(str || "");
 }
 
+// Browsers sometimes silently substitute "smart" typographic characters
+// while typing in an editable field — curly quotes for straight ones,
+// an em-dash for "--", (tm)/(c)/(r) for their symbol equivalents, "..."
+// for an ellipsis character. Harmless-looking on screen, but they don't
+// belong in a chord chart and can render oddly depending on the PDF
+// font, so exports normalize them back to their plain ASCII originals.
+function normalizeSmartPunctuation(text) {
+  if (!text) return "";
+  return text
+    .replace(/[\u2018\u2019\u201A\u201B]/g, "'")
+    .replace(/[\u201C\u201D\u201E\u201F]/g, "\"")
+    .replace(/[\u2013\u2014]/g, "-")
+    .replace(/\u2026/g, "...")
+    .replace(/\u2122/g, "(TM)")
+    .replace(/\u00A9/g, "(C)")
+    .replace(/\u00AE/g, "(R)");
+}
+
 function htmlToPlainText(html) {
   if (!html) return "";
-  if (!looksLikeFormattedHtml(html)) return html;
+  if (!looksLikeFormattedHtml(html)) return normalizeSmartPunctuation(html);
 
   let text = html;
   text = text.replace(/<br\s*\/?>/gi, "\n");
@@ -51,7 +69,7 @@ function htmlToPlainText(html) {
     .replace(/&#39;/gi, "'");
   text = text.replace(/^\n+/, "");
   text = text.replace(/\n{3,}/g, "\n\n");
-  return text;
+  return normalizeSmartPunctuation(text);
 }
 
 router.post("/generate", async (req, res) => {
